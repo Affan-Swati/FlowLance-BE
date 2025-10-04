@@ -1,12 +1,18 @@
 const express = require('express');
 const mongoose = require('mongoose');
 require('dotenv').config();
+
+const userRoutes = require("./routes/user.route.js");
+
 const app = express();
 
 
 //middleware
 app.use(express.json());
 app.use(express.urlencoded({extended: false}));
+
+// Routes
+app.use("/api/users", userRoutes);
 
 //connect to MongoDB
 const mongoUri = process.env.MONGO_URI;
