@@ -1,11 +1,11 @@
-const express = require('express');
-const mongoose = require('mongoose');
-require('dotenv').config();
+import express from 'express';
+import mongoose from 'mongoose';
+import dotenv from 'dotenv';
+import userRoutes from "./routes/user.route.js";
 
-const userRoutes = require("./routes/user.route.js");
+dotenv.config();
 
 const app = express();
-
 
 //middleware
 app.use(express.json());
@@ -25,5 +25,5 @@ mongoose.connect(mongoUri).then(() => {
     });
 })
 .catch((err) => {
-    console.log("Connection failed!"),err;
+    console.log("Connection failed!",err);
 });
