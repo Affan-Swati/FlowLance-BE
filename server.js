@@ -2,6 +2,8 @@ import express from 'express';
 import mongoose from 'mongoose';
 import dotenv from 'dotenv';
 import userRoutes from "./routes/user.route.js";
+import transactionRoutes from "./routes/transaction.route.js";
+import userBalanceRoutes from "./routes/userBalance.route.js";
 
 dotenv.config();
 
@@ -13,6 +15,8 @@ app.use(express.urlencoded({extended: false}));
 
 // Routes
 app.use("/api/users", userRoutes);
+app.use("/api/transactions", transactionRoutes);
+app.use("/api/balances", userBalanceRoutes);
 
 //connect to MongoDB
 const mongoUri = process.env.MONGO_URI;
