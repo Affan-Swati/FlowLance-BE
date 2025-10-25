@@ -99,9 +99,23 @@ export const getTransactions = async (req, res) => {
 
 export const getTransactionById = async (req, res) => {
   try {
-    const userId = req.user && req.user.id;
-    const transaction = await Transaction.findOne({ _id: req.params.id, user: userId });
-    if (!transaction) return res.status(404).json({ message: 'Transaction not found' });
+    const { id: userId, role } = req.user;
+    const { id: transactionId } = req.params;
+
+    // It must match the transactionId
+    const query = { _id: transactionId };
+    
+    // IF the user is NOT an admin, it must ALSO match their userId
+    if (role !== 'admin') {
+      query.user = userId;
+    }
+
+    const transaction = await Transaction.findOne(query);
+
+    if (!transaction) {
+      return res.status(404).json({ message: 'Transaction not found or you do not have permission' });
+    }
+    
     res.json(formatTransaction(transaction));
   } catch (err) {
     res.status(500).json({ message: err.message });
@@ -110,9 +124,21 @@ export const getTransactionById = async (req, res) => {
 
 export const updateTransaction = async (req, res) => {
   try {
-    const userId = req.user && req.user.id;
-    const transaction = await Transaction.findOne({ _id: req.params.id, user: userId });
-    if (!transaction) return res.status(404).json({ message: 'Transaction not found' });
+    const { id: userId, role } = req.user;
+    const { id: transactionId } = req.params;
+
+    // Build the query to find the transaction
+    const query = { _id: transactionId };
+    if (role !== 'admin') {
+      query.user = userId;
+    }
+
+    const transaction = await Transaction.findOne(query);
+    if (!transaction) {
+      return res.status(404).json({ message: 'Transaction not found or you do not have permission' });
+    }
+
+    const transactionOwnerId = transaction.user;
 
     const { amount, type, description, taxPercentage } = req.body;
     
@@ -126,8 +152,8 @@ export const updateTransaction = async (req, res) => {
 
     const newTax = calculateTax(amount, newPercentage);
 
-    let userBalance = await UserBalance.findOne({ user: userId });
-    if (!userBalance) userBalance = await UserBalance.create({ user: userId, balance: 0 });
+    let userBalance = await UserBalance.findOne({ user: transactionOwnerId });
+    if (!userBalance) userBalance = await UserBalance.create({ user: transactionOwnerId, balance: 0 });
 
     let tempBalance = userBalance.balance;
     if (transaction.type === 'credit') {
@@ -172,12 +198,24 @@ export const updateTransaction = async (req, res) => {
 
 export const deleteTransaction = async (req, res) => {
   try {
-    const userId = req.user && req.user.id;
-    const transaction = await Transaction.findOne({ _id: req.params.id, user: userId });
-    if (!transaction) return res.status(404).json({ message: 'Transaction not found' });
+    const { id: userId, role } = req.user;
+    const { id: transactionId } = req.params;
 
-    let userBalance = await UserBalance.findOne({ user: userId });
-    if (!userBalance) userBalance = await UserBalance.create({ user: userId, balance: 0 });
+    // Build the query to find the transaction
+    const query = { _id: transactionId };
+    if (role !== 'admin') {
+      query.user = userId;
+    }
+
+    const transaction = await Transaction.findOne(query);
+    if (!transaction) {
+      return res.status(404).json({ message: 'Transaction not found or you do not have permission' });
+    }
+    
+    const transactionOwnerId = transaction.user;
+
+    let userBalance = await UserBalance.findOne({ user: transactionOwnerId });
+    if (!userBalance) userBalance = await UserBalance.create({ user: transactionOwnerId, balance: 0 });
 
     if (transaction.type === 'credit') userBalance.balance -= (transaction.amount - transaction.tax);
     else userBalance.balance += (transaction.amount + transaction.tax);

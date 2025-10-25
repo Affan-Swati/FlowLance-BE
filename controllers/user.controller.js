@@ -32,7 +32,7 @@ const loginUser = async (req, res) => {
     }
 
     const token = jwt.sign(
-      { id: user._id, email: user.email },
+      { id: user._id, email: user.email, role: user.role },
       process.env.JWT_SECRET,
       { expiresIn: '1d' }
     );
@@ -65,6 +65,21 @@ const getUserById = async (req, res) => {
 };
 
 
+const getCurrentUser = async (req, res) => {
+  try {
+    const userIdToFind = req.user.id;
+    const user = await User.findById(userIdToFind);
+
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+      res.json(user);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+
 const updateUser = async (req, res) => {
   try {
     const user = await User.findByIdAndUpdate(
@@ -74,6 +89,25 @@ const updateUser = async (req, res) => {
     );
     if (!user) {
         return res.status(404).json({ message: "User not found" });
+    }
+    res.json(user);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+const updateCurrentUser = async (req, res) => {
+  try {
+    const updateData = { ...req.body };
+    delete updateData.role;
+    const user = await User.findByIdAndUpdate(
+      req.user.id,
+      updateData,
+      { new: true }
+    ); 
+
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
     }
     res.json(user);
   } catch (err) {
@@ -98,6 +132,8 @@ export default {
     loginUser,
     getUsers,
     getUserById,
+    getCurrentUser,
     updateUser,
+    updateCurrentUser,
     deleteUser
 };
