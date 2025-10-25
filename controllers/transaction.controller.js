@@ -87,11 +87,42 @@ export const createTransaction = async (req, res) => {
 
 export const getTransactions = async (req, res) => {
   try {
-    const userId = req.user && req.user.id;
-    if (!userId) return res.status(401).json({ message: 'Unauthorized' });
+    const { start_date, end_date } = req.query;
+    
+    const query = {};
+    const dateQuery = {};
 
-    const transactions = await Transaction.find({ user: userId }).sort({ createdAt: -1 });
+    if (start_date && end_date) {
+      const startDate = new Date(start_date);
+      startDate.setUTCHours(0, 0, 0, 0);
+      dateQuery.$gte = startDate;
+
+      const endDate = new Date(end_date);
+      endDate.setUTCHours(23, 59, 59, 999);
+      dateQuery.$lte = endDate;
+
+    } else if (start_date) {
+      const startDate = new Date(start_date);
+      startDate.setUTCHours(0, 0, 0, 0);
+      dateQuery.$gte = startDate;
+
+      const today = new Date();
+      today.setUTCHours(23, 59, 59, 999);
+      dateQuery.$lte = today;
+
+    } else if (end_date) {
+      const endDate = new Date(end_date);
+      endDate.setUTCHours(23, 59, 59, 999);
+      dateQuery.$lte = endDate;
+    }
+
+    if (Object.keys(dateQuery).length > 0) {
+      query.createdAt = dateQuery;
+    }
+
+    const transactions = await Transaction.find(query).sort({ createdAt: -1 });
     res.json(transactions.map(formatTransaction));
+
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
@@ -236,10 +267,44 @@ export const deleteTransaction = async (req, res) => {
 
 export const getAllTransactions = async (req, res) => {
   try {
-      const transactions = await Transaction.find({ user: req.user.id });
-      res.status(200).json(transactions.map(formatTransaction));
+    const { start_date, end_date } = req.query;
+  
+    const query = { user: req.user.id };
+    const dateQuery = {};
+
+    if (start_date && end_date) {
+      const startDate = new Date(start_date);
+      startDate.setUTCHours(0, 0, 0, 0);
+      dateQuery.$gte = startDate;
+
+      const endDate = new Date(end_date);
+      endDate.setUTCHours(23, 59, 59, 999);
+      dateQuery.$lte = endDate;
+
+    } else if (start_date) {
+      const startDate = new Date(start_date);
+      startDate.setUTCHours(0, 0, 0, 0);
+      dateQuery.$gte = startDate;
+
+      const today = new Date();
+      today.setUTCHours(23, 59, 59, 999);
+      dateQuery.$lte = today;
+
+    } else if (end_date) {
+      const endDate = new Date(end_date);
+      endDate.setUTCHours(23, 59, 59, 999);
+      dateQuery.$lte = endDate;
+    }
+
+    if (Object.keys(dateQuery).length > 0) {
+      query.createdAt = dateQuery;
+    }
+
+    const transactions = await Transaction.find(query).sort({ createdAt: -1 });
+    res.status(200).json(transactions.map(formatTransaction));
+
   } catch (error) {
-      res.status(500).json({ message: 'Error retrieving transactions', error });
+    res.status(500).json({ message: 'Error retrieving transactions', error });
   }
 };
 
