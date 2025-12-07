@@ -87,9 +87,11 @@ export const createTransaction = async (req, res) => {
 
 export const getTransactions = async (req, res) => {
   try {
+    const userId = req.user && req.user.id;
     const { start_date, end_date } = req.query;
     
-    const query = {};
+    // 2. Initialize the query object with the current user's ID
+    const query = { user: userId };
     const dateQuery = {};
 
     if (start_date && end_date) {
@@ -119,7 +121,6 @@ export const getTransactions = async (req, res) => {
     if (Object.keys(dateQuery).length > 0) {
       query.createdAt = dateQuery;
     }
-
     const transactions = await Transaction.find(query).sort({ createdAt: -1 });
     res.json(transactions.map(formatTransaction));
 
