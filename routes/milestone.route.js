@@ -5,6 +5,7 @@ import {
     getMilestoneById, 
     updateMilestone,
     deleteMilestone,
+    generateInvoice,
 } from '../controllers/milestone.controller.js';
 import auth from '../middleware/auth.js';
 
@@ -16,6 +17,9 @@ const router = express.Router();
 router.route('/gig/:gigId')
     .post(auth, createMilestone)  
     .get(auth, getMilestonesByGig); 
+
+// --- INVOICE ROUTE ---
+router.get('/:id/invoice', auth, generateInvoice);
 
 // --- INDIVIDUAL MILESTONE ROUTES ---
 // GET /api/milestones/:id: Retrieve a specific milestone
