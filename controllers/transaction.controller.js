@@ -1,6 +1,7 @@
 import Transaction from '../models/transaction.model.js';
 import UserBalance from '../models/userBalance.model.js';
-import mongoose from 'mongoose';
+import { Readable } from 'stream';
+import csvParser from 'csv-parser';
 
 const calculateTax = (amount, percentage) => {
   if (typeof amount !== 'number' || typeof percentage !== 'number' || amount < 0 || percentage < 0) {
@@ -309,11 +310,115 @@ export const getAllTransactions = async (req, res) => {
   }
 };
 
+export const uploadTransactionsCSV = async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ message: 'No file uploaded' });
+    }
+
+    const userId = req.user.id;
+    const results = [];
+
+    // 1. Create a stream from the uploaded file buffer
+    const stream = Readable.from(req.file.buffer.toString());
+
+    // 2. Parse the CSV
+    stream
+      .pipe(csvParser())
+      .on('data', (data) => results.push(data))
+      .on('end', async () => {
+        try {
+          if (results.length === 0) {
+            return res.status(400).json({ message: 'CSV is empty' });
+          }
+
+          // 3. Fetch current user balance once
+          let userBalance = await UserBalance.findOne({ user: userId });
+          if (!userBalance) userBalance = await UserBalance.create({ user: userId, balance: 0 });
+
+          const validTransactions = [];
+          let runningBalance = userBalance.balance;
+
+          // 4. Process each row
+          for (const row of results) {
+            // Ensure field names match your CSV headers (case-sensitive usually, but we handle standard names)
+            const amount = parseFloat(row.amount);
+            const type = row.type ? row.type.toLowerCase().trim() : null;
+            const taxPercentage = parseFloat(row.taxPercentage || 0);
+            const description = row.description || 'CSV Import';
+
+            // Basic validation per row
+            if (isNaN(amount) || !['credit', 'debit'].includes(type)) {
+              console.warn(`Skipping invalid row: ${JSON.stringify(row)}`);
+              continue; 
+            }
+
+            // Reuse your existing tax logic
+            const calculatedTax = calculateTax(amount, taxPercentage);
+
+            // Calculate impact on balance
+            const transactionTotal = type === 'credit' 
+              ? (amount - calculatedTax) 
+              : (amount + calculatedTax);
+
+            // Update running balance simulation
+            if (type === 'credit') {
+              runningBalance += transactionTotal;
+            } else {
+              runningBalance -= transactionTotal;
+            }
+
+            // Check for insufficient balance (if it drops below zero)
+            if (runningBalance < 0) {
+              return res.status(400).json({ 
+                message: `Import failed: Transaction for ${amount} would result in negative balance.` 
+              });
+            }
+
+            // Prepare object for Bulk Insert
+            validTransactions.push({
+              user: userId,
+              amount,
+              type,
+              tax: calculatedTax,
+              taxPercentage,
+              description
+            });
+          }
+
+          // 5. Save to Database
+          if (validTransactions.length > 0) {
+            // Bulk insert all transactions
+            await Transaction.insertMany(validTransactions);
+
+            // Update the user's balance permanently
+            userBalance.balance = Math.round(runningBalance * 100) / 100;
+            await userBalance.save();
+
+            return res.status(201).json({
+              message: `Successfully imported ${validTransactions.length} transactions`,
+              updatedBalance: userBalance.balance
+            });
+          } else {
+            return res.status(400).json({ message: 'No valid transactions found in CSV' });
+          }
+
+        } catch (err) {
+          return res.status(500).json({ message: 'Error saving CSV data', error: err.message });
+        }
+      });
+
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
 export default {
   createTransaction,
   getTransactions,
   getTransactionById,
   updateTransaction,
   deleteTransaction,
-  getAllTransactions
+  getAllTransactions,
+  uploadTransactionsCSV
 };
