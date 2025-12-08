@@ -10,6 +10,7 @@ import transactionRoutes from "./routes/transaction.route.js";
 import userBalanceRoutes from "./routes/userBalance.route.js";
 import gigRoutes from './routes/gig.route.js';
 import milestoneRoutes from './routes/milestone.route.js';
+import ratesRouter from './routes/rates.route.js'
 
 dotenv.config();
 
@@ -31,6 +32,9 @@ app.use("/api/transactions", transactionRoutes);
 app.use("/api/balances", userBalanceRoutes);
 app.use('/api/gigs', gigRoutes);
 app.use('/api/milestones', milestoneRoutes);
+
+// Currency
+app.use("/api/rates", ratesRouter);
 
 //connect to MongoDB
 const mongoUri = process.env.MONGO_URI;
