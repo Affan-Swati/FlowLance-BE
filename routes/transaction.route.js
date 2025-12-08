@@ -13,6 +13,10 @@ const upload = multer({ storage: storage });
 //CSV
 router.post('/uploadCSV', auth, upload.single('file'), transactionController.uploadTransactionsCSV);
 
+// === REPORT ROUTE ===
+// GET /api/transactions/report?startDate=2023-01-01&endDate=2023-12-31
+router.get('/report', auth, transactionController.generateTransactionReport);
+
 // === USER ROUTES ===
 router.get('/user', auth, transactionController.getTransactions);
 router.post('/', auth, transactionController.createTransaction);

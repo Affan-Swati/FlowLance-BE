@@ -2,6 +2,13 @@ import Transaction from '../models/transaction.model.js';
 import UserBalance from '../models/userBalance.model.js';
 import { Readable } from 'stream';
 import csvParser from 'csv-parser';
+import PDFDocument from 'pdfkit';
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const calculateTax = (amount, percentage) => {
   if (typeof amount !== 'number' || typeof percentage !== 'number' || amount < 0 || percentage < 0) {
@@ -413,6 +420,174 @@ export const uploadTransactionsCSV = async (req, res) => {
   }
 };
 
+export const generateTransactionReport = async (req, res) => {
+    try {
+        const userId = req.user.id;
+        const { startDate, endDate } = req.query;
+
+        // 1. Build Query for Filtering
+        let query = { user: userId };
+        
+        if (startDate || endDate) {
+            query.createdAt = {};
+            if (startDate) {
+                query.createdAt.$gte = new Date(startDate);
+            }
+            if (endDate) {
+                // Set end date to end of the day
+                const end = new Date(endDate);
+                end.setHours(23, 59, 59, 999);
+                query.createdAt.$lte = end;
+            }
+        }
+
+        // 2. Fetch Data
+        // Sort by date descending (newest first)
+        const transactions = await Transaction.find(query).sort({ createdAt: -1 });
+        const userBalanceObj = await UserBalance.findOne({ user: userId });
+        const currentBalance = userBalanceObj ? userBalanceObj.balance : 0;
+
+        // 3. Calculate Report Totals (for the filtered period)
+        let totalCredit = 0;
+        let totalDebit = 0;
+        let totalTax = 0;
+
+        transactions.forEach(tx => {
+            if (tx.type === 'credit') totalCredit += tx.amount;
+            if (tx.type === 'debit') totalDebit += tx.amount;
+            totalTax += (tx.tax || 0);
+        });
+
+        // 4. Setup PDF
+        const filename = `history-${userId}-${Date.now()}.pdf`;
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader('Content-Disposition', `inline; filename="${filename}"`);
+
+        const doc = new PDFDocument({ margin: 50, size: 'A4' });
+        doc.pipe(res);
+
+        // =======================
+        // DESIGN & LAYOUT
+        // =======================
+
+        // --- HEADER (Consistent with Invoice) ---
+        // Dark Blue-Grey background
+        doc.rect(0, 0, doc.page.width, 140).fill('#2c3e50'); 
+
+        // Logo
+        const logoPath = path.join(__dirname, '..', 'assets', 'logo.png');
+        if (fs.existsSync(logoPath)) {
+            // Centered: (595 - 150) / 2 = 222.5 => ~222
+            doc.image(logoPath, 222, 25, { width: 150 });
+        }
+
+        // Title
+        doc.fillColor('#FFFFFF')
+           .fontSize(20)
+           .text('TRANSACTION HISTORY', 0, 95, { width: doc.page.width, align: 'center', letterSpacing: 2 });
+        
+        // Date Range Subtitle
+        let dateRangeText = 'All Time';
+        if (startDate && endDate) dateRangeText = `${new Date(startDate).toLocaleDateString()} - ${new Date(endDate).toLocaleDateString()}`;
+        else if (startDate) dateRangeText = `Since ${new Date(startDate).toLocaleDateString()}`;
+        
+        doc.fontSize(10).fillColor('#E0E0E0')
+           .text(dateRangeText, 0, 120, { width: doc.page.width, align: 'center' });
+
+        // --- RESET CURSOR ---
+        doc.fillColor('#000000');
+        let currentY = 180; // Start below header
+
+        // --- SUMMARY CARDS (Top of Report) ---
+        // We'll draw 3 mini boxes for quick stats
+        const drawCard = (x, label, value, color) => {
+            doc.roundedRect(x, currentY, 150, 50, 5).fillAndStroke('#f8f9fa', '#e9ecef');
+            doc.fillColor('#666666').fontSize(10).text(label, x + 10, currentY + 10);
+            doc.fillColor(color).fontSize(16).font('Helvetica-Bold').text(value, x + 10, currentY + 28);
+        };
+
+        drawCard(50, 'Total Credit', `+$${totalCredit.toFixed(2)}`, '#27ae60'); // Green
+        drawCard(220, 'Total Debit', `-$${totalDebit.toFixed(2)}`, '#c0392b'); // Red
+        drawCard(390, 'Current Balance', `$${currentBalance.toFixed(2)}`, '#2c3e50'); // Dark
+
+        currentY += 80; // Move down past cards
+
+        // --- TRANSACTION TABLE HEADER ---
+        const drawTableHeader = (y) => {
+            doc.rect(50, y, 495, 25).fill('#2c3e50'); // Header Bar
+            doc.fillColor('#FFFFFF').fontSize(10).font('Helvetica-Bold');
+            doc.text('Date', 60, y + 8);
+            doc.text('Description', 150, y + 8);
+            doc.text('Type', 380, y + 8);
+            doc.text('Amount', 450, y + 8, { width: 90, align: 'right' });
+        };
+
+        drawTableHeader(currentY);
+        currentY += 25;
+
+        // --- TABLE ROWS ---
+        doc.fillColor('#000000').font('Helvetica').fontSize(9);
+        
+        transactions.forEach((tx, index) => {
+            // Check for Page Break
+            if (currentY > 750) {
+                doc.addPage();
+                currentY = 50; // Reset to top
+                drawTableHeader(currentY); // Redraw header on new page
+                currentY += 25;
+                doc.fillColor('#000000').font('Helvetica').fontSize(9);
+            }
+
+            // Alternating Row Background
+            if (index % 2 === 0) {
+                doc.rect(50, currentY, 495, 20).fill('#f8f9fa');
+                doc.fillColor('#000000'); // Reset fill after rect
+            }
+
+            const dateStr = new Date(tx.createdAt).toLocaleDateString();
+            const typeStr = tx.type.charAt(0).toUpperCase() + tx.type.slice(1); // Capitalize
+            const amountStr = `$${tx.amount.toFixed(2)}`;
+            const descStr = tx.description || 'N/A';
+            const typeColor = tx.type === 'credit' ? '#27ae60' : '#c0392b';
+
+            // Draw Text
+            doc.text(dateStr, 60, currentY + 6);
+            doc.text(descStr, 150, currentY + 6, { width: 220, lineBreak: false, ellipsis: true }); // Truncate long desc
+            
+            doc.fillColor(typeColor).text(typeStr, 380, currentY + 6); // Colored Type
+            
+            doc.fillColor('#000000').text(amountStr, 450, currentY + 6, { width: 90, align: 'right' });
+
+            currentY += 20;
+        });
+
+        // --- FOOTER SUMMARY ---
+        currentY += 20;
+        // Check if footer fits, else new page
+        if (currentY > 700) {
+            doc.addPage();
+            currentY = 50;
+        }
+
+        doc.moveTo(50, currentY).lineTo(545, currentY).strokeColor('#aaaaaa').stroke();
+        currentY += 15;
+
+        doc.fontSize(10).font('Helvetica-Bold');
+        doc.text(`Report Generated: ${new Date().toLocaleString()}`, 50, currentY, { color: '#666666' });
+        
+        doc.text('Net Tax Paid:', 350, currentY);
+        doc.text(`$${totalTax.toFixed(2)}`, 450, currentY, { width: 90, align: 'right' });
+
+        doc.end();
+
+    } catch (err) {
+        console.error("Report Generation Error:", err);
+        if (!res.headersSent) {
+            res.status(500).json({ message: err.message });
+        }
+    }
+};
+
 export default {
   createTransaction,
   getTransactions,
@@ -420,5 +595,6 @@ export default {
   updateTransaction,
   deleteTransaction,
   getAllTransactions,
-  uploadTransactionsCSV
+  uploadTransactionsCSV,
+  generateTransactionReport
 };
