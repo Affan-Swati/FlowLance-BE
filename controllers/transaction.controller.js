@@ -490,6 +490,7 @@ export const generateTransactionReport = async (req, res) => {
         let dateRangeText = 'All Time';
         if (startDate && endDate) dateRangeText = `${new Date(startDate).toLocaleDateString()} - ${new Date(endDate).toLocaleDateString()}`;
         else if (startDate) dateRangeText = `Since ${new Date(startDate).toLocaleDateString()}`;
+        else if (endDate) dateRangeText = `Until ${new Date(endDate).toLocaleDateString()}`;
         
         doc.fontSize(10).fillColor('#E0E0E0')
            .text(dateRangeText, 0, 120, { width: doc.page.width, align: 'center' });
