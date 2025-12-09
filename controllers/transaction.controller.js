@@ -6,6 +6,7 @@ import PDFDocument from 'pdfkit';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { categorizeTransaction } from '../utils/aiCategorizer.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -32,6 +33,7 @@ const formatTransaction = (tx) => {
     user: tx.user,
     amount: tx.amount,
     type: tx.type,
+    category: tx.category,
     description: tx.description,
     tax,
     taxPercentage,
@@ -58,12 +60,25 @@ export const createTransaction = async (req, res) => {
       return res.status(400).json({ message: 'Invalid taxPercentage. Must be a positive number.' });
     }
 
+    // --- AI CATEGORIZATION LOGIC ---
+    let category = 'Uncategorized';
+    
+    // Check if description exists (Categorize BOTH credit and debit)
+    if (description) {
+        try {
+            category = await categorizeTransaction(description, type);
+        } catch (error) {
+            console.warn("AI Manual Categorization failed:", error.message);
+        }
+    }
+
     const calculatedTax = calculateTax(amount, parsedPercentage);
 
     const transaction = await Transaction.create({ 
       user: userId, 
       amount, 
       type, 
+      category,
       tax: calculatedTax,
       taxPercentage: parsedPercentage,
       description 
@@ -216,6 +231,21 @@ export const updateTransaction = async (req, res) => {
       tempBalance -= (amount + newTax);
     }
 
+    // --- AI CATEGORIZATION UPDATE ---
+    // Recalculate if description OR type changed
+    if (description && (description !== transaction.description || type !== transaction.type)) {
+         try {
+            transaction.category = await categorizeTransaction(description, type);
+        } catch (error) {
+            console.warn("AI Update Categorization failed:", error.message);
+        }
+    } 
+    
+    // Allow manual override
+    if (req.body.category) {
+        transaction.category = req.body.category;
+    }
+
     userBalance.balance = Math.round(tempBalance * 100) / 100;
 
     transaction.amount = amount;
@@ -348,7 +378,7 @@ export const uploadTransactionsCSV = async (req, res) => {
 
           // 4. Process each row
           for (const row of results) {
-            // Ensure field names match your CSV headers (case-sensitive usually, but we handle standard names)
+            // Ensure field names match your CSV headers
             const amount = parseFloat(row.amount);
             const type = row.type ? row.type.toLowerCase().trim() : null;
             const taxPercentage = parseFloat(row.taxPercentage || 0);
@@ -360,7 +390,7 @@ export const uploadTransactionsCSV = async (req, res) => {
               continue; 
             }
 
-            // Reuse your existing tax logic
+            // Reuse existing tax logic
             const calculatedTax = calculateTax(amount, taxPercentage);
 
             // Calculate impact on balance
@@ -382,11 +412,27 @@ export const uploadTransactionsCSV = async (req, res) => {
               });
             }
 
+            // --- AI CATEGORIZATION LOGIC START ---
+            let category = 'Uncategorized';
+            
+            // Categorize if description exists (Checking both 'credit' and 'debit')
+            if (description && description !== 'CSV Import') {
+                try {
+                    // Pass the row's specific type ('credit' or 'debit') so AI selects the right list
+                    category = await categorizeTransaction(description, type);
+                } catch (aiError) {
+                    console.warn(`AI CSV Categorization failed for row "${description}":`, aiError.message);
+                    // Fallback to 'Uncategorized' is handled by default value
+                }
+            }
+            // --- AI CATEGORIZATION LOGIC END ---
+
             // Prepare object for Bulk Insert
             validTransactions.push({
               user: userId,
               amount,
               type,
+              category, // <--- Add the AI-categorized result here
               tax: calculatedTax,
               taxPercentage,
               description
@@ -419,7 +465,6 @@ export const uploadTransactionsCSV = async (req, res) => {
     res.status(500).json({ message: err.message });
   }
 };
-
 export const generateTransactionReport = async (req, res) => {
     try {
         const userId = req.user.id;
