@@ -4,6 +4,7 @@ import PDFDocument from 'pdfkit';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import mongoose from 'mongoose'; 
 
 // Helper to resolve paths in ES Modules
 const __filename = fileURLToPath(import.meta.url);
@@ -15,6 +16,44 @@ const checkMilestoneOwnership = async (milestoneId, userId) => {
     if (!milestone) return false;
     return milestone.user.toString() === userId.toString();
 };
+
+// --- NEW UTILITY FUNCTIONS FOR GIG UPDATES ---
+
+const updateTotalValue = async (gigId) => {
+    // Aggregation to sum the paymentAmount of all milestones for the gig
+    const result = await Milestone.aggregate([
+        { $match: { gig: new mongoose.Types.ObjectId(gigId) } },
+        { $group: { _id: '$gig', total: { $sum: '$paymentAmount' } } }
+    ]);
+    
+    const newTotalValue = result.length > 0 ? result[0].total : 0;
+    
+    // Update the Gig's totalValue
+    await Gig.findByIdAndUpdate(gigId, { totalValue: newTotalValue });
+};
+
+const updateGigDueDate = async (gigId) => {
+    const gig = await Gig.findById(gigId);
+    if (!gig) return;
+
+    const latestMilestone = await Milestone.findOne({ gig: gigId })
+        .sort({ dueDate: -1 })
+        .limit(1);
+
+    let newDueDate;
+    if (latestMilestone) {
+        // Due date is the last milestone's due date
+        newDueDate = latestMilestone.dueDate;
+    } else {
+        // If no milestones, due date is the gig's start date
+        newDueDate = gig.startDate;
+    }
+    
+    if (newDueDate && newDueDate.getTime() !== (gig.dueDate ? gig.dueDate.getTime() : null)) {
+        await Gig.findByIdAndUpdate(gigId, { dueDate: newDueDate });
+    }
+};
+
 
 export const getMilestoneById = async (req, res) => {
     try {
@@ -48,6 +87,11 @@ export const createMilestone = async (req, res) => {
             gig: gigId,
             user: req.user.id // Link milestone to the gig owner
         });
+        
+        // Update parent Gig's computed fields
+        await updateTotalValue(gigId);
+        await updateGigDueDate(gigId);
+        
         res.status(201).json(milestone);
     } catch (err) {
         res.status(500).json({ message: err.message });
@@ -82,6 +126,14 @@ export const updateMilestone = async (req, res) => {
         }
 
         milestone = await Milestone.findByIdAndUpdate(req.params.id, req.body, { new: true });
+
+        // Update parent Gig's computed fields if paymentAmount or dueDate changed 
+        if (req.body.paymentAmount || req.body.dueDate) {
+             const { gig } = milestone; // Get the gig ID from the pre-updated milestone object
+             await updateTotalValue(gig);
+             await updateGigDueDate(gig);
+        }
+
         res.json(milestone);
     } catch (err) {
         res.status(500).json({ message: err.message });
@@ -97,7 +149,15 @@ export const deleteMilestone = async (req, res) => {
             return res.status(403).json({ message: 'Not authorized to delete this milestone' });
         }
 
+        // Save gig ID before deletion for update
+        const gigId = milestone.gig;
+        
         await Milestone.deleteOne({ _id: req.params.id });
+
+        // Update parent Gig's computed fields after deletion
+        await updateTotalValue(gigId);
+        await updateGigDueDate(gigId);
+        
         res.json({ message: 'Milestone deleted successfully' });
     } catch (err) {
         res.status(500).json({ message: err.message });

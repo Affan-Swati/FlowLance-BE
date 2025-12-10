@@ -3,7 +3,6 @@ import mongoose from 'mongoose';
 const gigSchema = new mongoose.Schema(
     {
         user: {
-            // The freelancer who owns this gig
             type: mongoose.Schema.Types.ObjectId,
             ref: 'User',
             required: true
@@ -23,15 +22,13 @@ const gigSchema = new mongoose.Schema(
             required: false,
             trim: true
         },
-        // Total agreed-upon value for the entire gig
         totalValue: {
             type: Number,
-            required: true,
             default: 0
         },
         startDate: {
             type: Date,
-            required: false,
+            required: true,
         },
         dueDate: {
             type: Date,

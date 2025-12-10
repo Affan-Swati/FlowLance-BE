@@ -26,11 +26,11 @@ const milestoneSchema = new mongoose.Schema(
         },
         startDate: {
             type: Date,
-            required: false,
+            required: true,
         },
         dueDate: {
             type: Date,
-            required: false,
+            required: true,
         },
         // The project management column states
         status: {
