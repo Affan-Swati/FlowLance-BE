@@ -2,41 +2,53 @@ import express from 'express';
 import mongoose from 'mongoose';
 import dotenv from 'dotenv';
 import cors from 'cors';
-import authRoutes from './routes/auth.route.js';
 import passport from 'passport';
 
+// Existing Routes
+import authRoutes from './routes/auth.route.js';
 import userRoutes from "./routes/user.route.js";
 import transactionRoutes from "./routes/transaction.route.js";
 import userBalanceRoutes from "./routes/userBalance.route.js";
 import gigRoutes from './routes/gig.route.js';
 import milestoneRoutes from './routes/milestone.route.js';
-import ratesRouter from './routes/rates.route.js'
+import ratesRouter from './routes/rates.route.js';
+
+// New AI Resume Route
+import resumeRoutes from './routes/resume.routes.js'; 
 
 dotenv.config();
 
 const app = express();
 
-//middleware
+// Middleware
 app.use(cors({
   origin: 'http://localhost:5173',
   credentials: true
 }));
 app.use(express.json());
-app.use(express.urlencoded({extended: false}));
+app.use(express.urlencoded({ extended: false }));
 app.use(passport.initialize());
 
-// Routes
+// --- Routes ---
+
+// Auth & User Management
 app.use('/api/auth', authRoutes);
 app.use("/api/users", userRoutes);
+
+// Finance & Transactions
 app.use("/api/transactions", transactionRoutes);
 app.use("/api/balances", userBalanceRoutes);
+app.use("/api/rates", ratesRouter);
+
+// Gig & Milestone Management
 app.use('/api/gigs', gigRoutes);
 app.use('/api/milestones', milestoneRoutes);
 
-// Currency
-app.use("/api/rates", ratesRouter);
+// AI Agents (Resume Processing & RAG)
+app.use('/api/resume', resumeRoutes); 
 
-//connect to MongoDB
+// --- Database & Server ---
+
 const mongoUri = process.env.MONGO_URI;
 const port = process.env.PORT || 3000;
 
@@ -47,5 +59,5 @@ mongoose.connect(mongoUri).then(() => {
     });
 })
 .catch((err) => {
-    console.log("Connection failed!",err);
+    console.log("Connection failed!", err);
 });
