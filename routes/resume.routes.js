@@ -1,16 +1,17 @@
-const express = require('express');
-const router = express.Router();
-const multer = require('multer');
-const resumeController = require('../controllers/resume.controller');
+import express from 'express';
+import multer from 'multer';
+import { processResume } from '../controllers/resume.controller.js';
+import auth from '../middleware/auth.js';
 
-// Store file in memory to pass it directly to Python
+const router = express.Router();
+
+// Store file in memory to pass it directly to Python service
 const storage = multer.memoryStorage();
 const upload = multer({ 
     storage: storage,
     limits: { fileSize: 5 * 1024 * 1024 } // 5MB limit
 });
 
-// Endpoint: POST /api/resume/upload
-router.post('/upload', upload.single('file'), resumeController.processResume);
+router.post('/upload', auth, upload.single('file'), processResume);
 
-module.exports = router;
+export default router;

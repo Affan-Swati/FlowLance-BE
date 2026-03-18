@@ -1,50 +1,55 @@
-const axios = require('axios');
-const FormData = require('form-data');
+import axios from 'axios';
+import FormData from 'form-data';
 
-exports.processResume = async (req, res) => {
+export const processResume = async (req, res) => {
     try {
-        const { user_id } = req.body;
+        // Now extracting id from the auth middleware (JWT payload)
+        const userId = req.user.id; 
         const file = req.file;
 
-        if (!file || !user_id) {
+        if (!file) {
             return res.status(400).json({ 
-                error: "Missing file or user_id. Please provide both." 
+                success: false,
+                error: "No resume file provided." 
             });
         }
 
-        // Prepare the payload for the Python FastAPI server
+        // Prepare the multi-part form data for the Python FastAPI server
         const form = new FormData();
-        form.append('user_id', user_id);
+        form.append('user_id', userId.toString());
         form.append('file', file.buffer, {
             filename: file.originalname,
             contentType: file.mimetype,
         });
 
-        console.log(`Forwarding resume for user ${user_id} to AI microservice...`);
+        console.log(`🚀 Forwarding resume for user ${userId} to AI microservice...`);
 
-        // Call your FastAPI endpoint (running on port 8000)
+        const aiEndpoint = `${process.env.AI_SERVICE_URL}/api/agents/resume/process`;
+
+        // Call your FastAPI endpoint
         const pythonResponse = await axios.post(
-            'http://localhost:8000/api/agents/resume/process', 
+            aiEndpoint, 
             form, 
             {
                 headers: {
                     ...form.getHeaders(),
                 },
-                // Increase timeout for AI processing
                 maxContentLength: Infinity,
                 maxBodyLength: Infinity
             }
         );
 
-        // Success! The RAG is now built in MongoDB
+        // Success! The RAG is now built in MongoDB via the Python service
         return res.status(200).json({
+            success: true,
             message: "Resume processed and RAG ingestion complete.",
             data: pythonResponse.data
         });
 
     } catch (error) {
-        console.error("Error calling AI microservice:", error.response?.data || error.message);
+        console.error("❌ AI Microservice Error:", error.response?.data || error.message);
         return res.status(500).json({ 
+            success: false,
             error: "AI Microservice failed to process resume.",
             details: error.response?.data || error.message
         });
