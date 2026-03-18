@@ -15,6 +15,7 @@ import ratesRouter from './routes/rates.route.js';
 
 // New AI Resume Route
 import resumeRoutes from './routes/resume.routes.js'; 
+import proposalRoutes from './routes/proposal.route.js';
 
 dotenv.config();
 
@@ -44,8 +45,9 @@ app.use("/api/rates", ratesRouter);
 app.use('/api/gigs', gigRoutes);
 app.use('/api/milestones', milestoneRoutes);
 
-// AI Agents (Resume Processing & RAG)
+// AI Agents
 app.use('/api/resume', resumeRoutes); 
+app.use('/api/proposals', proposalRoutes);
 
 // --- Database & Server ---
 
