@@ -66,7 +66,13 @@ export const getAIGeneratedInsights = async (req, res) => {
         });
 
         if (!aiResponse.ok) {
-            throw new Error(`AI Microservice failed with status: ${aiResponse.status}`);
+            let errorDetail = "Unknown AI Error";
+            try {
+                const errorData = await aiResponse.json();
+                errorDetail = errorData.detail || errorDetail;
+            } catch (parseErr) {}
+            
+            throw new Error(errorDetail); 
         }
 
         const aiData = await aiResponse.json();
@@ -82,7 +88,10 @@ export const getAIGeneratedInsights = async (req, res) => {
         });
 
     } catch (err) {
-        console.error("Error generating AI insights:", err);
-        res.status(500).json({ success: false, message: err.message });
+        console.error("🚨 INTERNAL ANALYTICS AI ERROR:", err.message);
+
+        res.status(500).json({ 
+            error: "The AI Analytics engine is currently not available. Please try again in a moment." 
+        });
     }
 };
