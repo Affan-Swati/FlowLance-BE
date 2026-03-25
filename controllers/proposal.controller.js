@@ -58,8 +58,12 @@ export const generateProposal = async (req, res) => {
     });
 
   } catch (error) {
-    console.error("AI Bridge Error:", error.response?.data || error.message);
-    res.status(500).json({ error: "Failed to sync with AI service" });
+    const pythonErrorMessage = error.response?.data?.detail || error.message;
+    console.error("🚨 INTERNAL AI ERROR:", pythonErrorMessage);
+
+    res.status(500).json({ 
+      error: "The AI proposal engine is currently unavailable. Please try again in a moment." 
+    });
   }
 };
 
