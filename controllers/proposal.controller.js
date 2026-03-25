@@ -3,7 +3,7 @@ import axios from 'axios';
 
 // TOGGLE THIS TO FALSE FOR PRODUCTION / REAL AI INFERENCE
 // TODO: REMOVE LATER, ADDING THIS JUST FOR FRONT END DEV WORK TO BYPASS THE MODEL INFERENCE
-const MOCK_AI_RESPONSE = true;
+const MOCK_AI_RESPONSE = false;
 
 export const generateProposal = async (req, res) => {
   try {

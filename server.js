@@ -13,9 +13,10 @@ import gigRoutes from './routes/gig.route.js';
 import milestoneRoutes from './routes/milestone.route.js';
 import ratesRouter from './routes/rates.route.js';
 
-// New AI Resume Route
+//AI Routes
 import resumeRoutes from './routes/resume.routes.js'; 
 import proposalRoutes from './routes/proposal.route.js';
+import analyticsRoutes from './routes/analytics.route.js';
 
 dotenv.config();
 
@@ -45,9 +46,10 @@ app.use("/api/rates", ratesRouter);
 app.use('/api/gigs', gigRoutes);
 app.use('/api/milestones', milestoneRoutes);
 
-// AI Agents
+// AI Routes
 app.use('/api/resume', resumeRoutes); 
 app.use('/api/proposals', proposalRoutes);
+app.use('/api/analytics', analyticsRoutes);
 
 // --- Database & Server ---
 
