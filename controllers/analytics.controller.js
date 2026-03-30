@@ -39,11 +39,14 @@ export const getAIGeneratedInsights = async (req, res) => {
             };
         });
 
-        const profileDoc = await mongoose.connection.db
+        const profileDocs = await mongoose.connection.db
             .collection('freelancer_profiles')
-            .findOne({ user_id: userId.toString() });
+            .find({ user_id: userId.toString() })
+            .toArray();
 
-        const resumeData = profileDoc ? profileDoc.resume_data : null;
+        const resumeDataArray = profileDocs
+            .map(doc => doc.resume_data)
+            .filter(data => data != null);
 
         const aiPayload = {
             freelancerProfile: {
@@ -52,7 +55,7 @@ export const getAIGeneratedInsights = async (req, res) => {
                 totalGigs: formattedGigs.length,
             },
             portfolioHistory: formattedGigs,
-            resumeData: resumeData
+            resumeData: resumeDataArray
         };
 
         // --- 2. COMMUNICATE WITH FASTAPI MICROSERVICE ---
