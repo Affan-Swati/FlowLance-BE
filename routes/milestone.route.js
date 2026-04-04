@@ -6,6 +6,7 @@ import {
     updateMilestone,
     deleteMilestone,
     generateInvoice,
+    bulkCreateMilestones
 } from '../controllers/milestone.controller.js';
 import auth from '../middleware/auth.js';
 
@@ -18,6 +19,7 @@ router.route('/gig/:gigId')
     .post(auth, createMilestone)  
     .get(auth, getMilestonesByGig); 
 
+router.post('/gig/:gigId/bulk', auth, bulkCreateMilestones);
 // --- INVOICE ROUTE ---
 router.get('/:id/invoice', auth, generateInvoice);
 

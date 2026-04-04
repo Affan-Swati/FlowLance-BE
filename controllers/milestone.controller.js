@@ -164,6 +164,48 @@ export const deleteMilestone = async (req, res) => {
     }
 };
 
+export const bulkCreateMilestones = async (req, res) => {
+    const { gigId } = req.params;
+    const { milestones } = req.body;
+
+    if (!Array.isArray(milestones) || milestones.length === 0) {
+        return res.status(400).json({ message: "No milestones provided." });
+    }
+
+    try {
+        const gig = await Gig.findById(gigId);
+        if (!gig) return res.status(404).json({ message: 'Gig not found' });
+
+        // Ensure ownership
+        if (gig.user.toString() !== req.user.id.toString() && req.user.role !== 'admin') {
+            return res.status(403).json({ message: 'Not authorized' });
+        }
+
+        await Milestone.deleteMany({ gig: gigId });
+
+        const milestonesToSave = milestones.map(m => ({
+            ...m,
+            gig: gigId,
+            user: req.user.id,
+        }));
+
+        const createdMilestones = await Milestone.insertMany(milestonesToSave);
+
+        // 4. Update parent Gig's computed fields (Total Value and Final Due Date)
+        await updateTotalValue(gigId);
+        await updateGigDueDate(gigId);
+
+        res.status(201).json({
+            message: `Successfully saved ${createdMilestones.length} milestones.`,
+            milestones: createdMilestones
+        });
+
+    } catch (err) {
+        console.error("Bulk Upload Error:", err);
+        res.status(500).json({ message: err.message });
+    }
+};
+
 export const generateInvoice = async (req, res) => {
     try {
         const { id } = req.params;
