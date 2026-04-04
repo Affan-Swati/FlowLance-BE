@@ -1,6 +1,7 @@
 import Gig from '../models/gig.model.js';
 import Milestone from '../models/milestone.model.js';
 import mongoose from 'mongoose';
+import axios from 'axios';
 
 // Utility function to check ownership for a resource
 const checkOwnership = (resource, userId) => {
@@ -149,5 +150,54 @@ export const getAllGigs = async (req, res) => {
         res.json(gigs);
     } catch (err) {
         res.status(500).json({ message: err.message });
+    }
+};
+
+export const generateMilestonesAI = async (req, res) => {
+    try {
+        const gig = await Gig.findById(req.params.id);
+
+        if (!gig) {
+            return res.status(404).json({ message: 'Gig not found' });
+        }
+
+        // Check if the user owns this gig
+        if (!checkOwnership(gig, req.user.id) && req.user.role !== 'admin') {
+            return res.status(403).json({ message: 'Not authorized' });
+        }
+
+        if (!gig.description) {
+            return res.status(400).json({ message: 'Gig description is required for AI generation' });
+        }
+
+        const payload = {
+            gig_id: gig._id.toString(),
+            job_description: gig.description,
+            start_date: gig.startDate.toISOString().split('T')[0] 
+        };
+
+        const AI_SERVICE_URL = process.env.AI_SERVICE_URL || 'http://localhost:8000';
+        
+        console.log(`🤖 Requesting AI milestones for Gig: ${gig.title}...`);
+
+        const aiResponse = await axios.post(
+            `${AI_SERVICE_URL}/api/agents/gig/generate-milestones`, 
+            payload
+        );
+
+        res.json({
+            status: 'success',
+            gig_id: gig._id,
+            milestones: aiResponse.data.milestones 
+        });
+
+    } catch (err) {
+        console.error('❌ AI Generation Error:', err.response?.data || err.message);
+        
+        const errorMessage = err.response?.data?.detail || "AI Agent is currently unavailable.";
+        res.status(500).json({ 
+            message: 'Failed to generate milestones with AI', 
+            error: errorMessage 
+        });
     }
 };

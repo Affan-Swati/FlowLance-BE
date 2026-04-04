@@ -5,7 +5,8 @@ import {
     getGigById, 
     updateGig, 
     deleteGig,
-    getAllGigs
+    getAllGigs,
+    generateMilestonesAI
 } from '../controllers/gig.controller.js';
 import auth from '../middleware/auth.js'; 
 import adminAuth from '../middleware/adminAuth.js';
@@ -23,6 +24,8 @@ router.route('/:id')
     .get(auth, getGigById)
     .put(auth, updateGig)
     .delete(auth, deleteGig);
+
+router.post('/:id/generate-milestones', auth, generateMilestonesAI);
 
 // --- ADMIN ROUTES ---
 // GET /api/gigs: Get all gigs for ALL users (Admin Only)
