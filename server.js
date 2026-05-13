@@ -17,7 +17,7 @@ import ratesRouter from './routes/rates.route.js';
 import resumeRoutes from './routes/resume.routes.js'; 
 import proposalRoutes from './routes/proposal.route.js';
 import analyticsRoutes from './routes/analytics.route.js';
-
+import messagingRoutes from './routes/messaging.route.js';
 dotenv.config();
 
 const app = express();
@@ -50,6 +50,7 @@ app.use('/api/milestones', milestoneRoutes);
 app.use('/api/resume', resumeRoutes); 
 app.use('/api/proposals', proposalRoutes);
 app.use('/api/analytics', analyticsRoutes);
+app.use('/api/messages', messagingRoutes);
 
 // --- Database & Server ---
 
